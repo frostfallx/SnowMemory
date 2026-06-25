@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnowMemory - 记忆管理看板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .card { transition: all 0.2s ease; }
+        .card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .modal-overlay { background: rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="app()" x-init="init()">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                </svg>
+                <h1 class="text-xl font-bold text-gray-800">SnowMemory 记忆管理</h1>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="text-sm text-gray-500" x-text="'总用户: ' + stats.users + ' | 总事实: ' + stats.facts"></span>
+                <button @click="refreshAll()" class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm transition">
+                    刷新
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Tabs -->
+        <div class="flex space-x-6 mb-6 border-b">
+            <button @click="activeTab = 'users'" :class="activeTab === 'users' ? 'tab-active' : 'text-gray-500'"
+                    class="px-2 py-2 font-medium text-sm transition">用户</button>
+            <button @click="activeTab = 'aliases'" :class="activeTab === 'aliases' ? 'tab-active' : 'text-gray-500'"
+                    class="px-2 py-2 font-medium text-sm transition">别名</button>
+            <button @click="activeTab = 'facts'" :class="activeTab === 'facts' ? 'tab-active' : 'text-gray-500'"
+                    class="px-2 py-2 font-medium text-sm transition">长期事实</button>
+        </div>
+
+        <!-- Users Tab -->
+        <div x-show="activeTab === 'users'" x-cloak>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-700">用户列表</h2>
+                <button @click="openUserModal()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm transition">
+                    + 新增用户
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="user in users" :key="user.user_id">
+                    <div class="card bg-white rounded-lg shadow p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-semibold text-gray-800" x-text="user.user_id"></h3>
+                                <p class="text-xs text-gray-400" x-text="'创建: ' + user.created_at"></p>
+                            </div>
+                            <div class="flex space-x-1">
+                                <button @click="openUserModal(user)" class="text-blue-500 hover:text-blue-700 text-sm">编辑</button>
+                                <button @click="deleteUser(user.user_id)" class="text-red-500 hover:text-red-700 text-sm">删除</button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-600" x-text="user.notes || '暂无备注'"></p>
+                        <div class="mt-2 flex space-x-2">
+                            <button @click="activeTab='aliases'; filterUser=user.user_id" class="text-xs text-blue-400 hover:underline">
+                                查看别名
+                            </button>
+                            <button @click="activeTab='facts'; filterUser=user.user_id" class="text-xs text-blue-400 hover:underline">
+                                查看事实
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <p x-show="users.length === 0" class="text-gray-400 text-center py-8">暂无用户数据</p>
+        </div>
+
+        <!-- Aliases Tab -->
+        <div x-show="activeTab === 'aliases'" x-cloak>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-700">别名列表</h2>
+                <button @click="openAliasModal()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm transition">
+                    + 新增别名
+                </button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">QQ号</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">群号</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">称呼</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">更新时间</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <template x-for="alias in filteredAliases" :key="alias.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3 text-sm text-gray-600" x-text="alias.id"></td>
+                                <td class="px-4 py-3 text-sm font-medium text-gray-800" x-text="alias.user_id"></td>
+                                <td class="px-4 py-3 text-sm text-gray-600" x-text="alias.group_id"></td>
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs" x-text="alias.called_name"></span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-500" x-text="alias.updated_at"></td>
+                                <td class="px-4 py-3 text-sm space-x-2">
+                                    <button @click="openAliasModal(alias)" class="text-blue-500 hover:text-blue-700">编辑</button>
+                                    <button @click="deleteAlias(alias.id)" class="text-red-500 hover:text-red-700">删除</button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <p x-show="filteredAliases.length === 0" class="text-gray-400 text-center py-8">暂无别名数据</p>
+        </div>
+
+        <!-- Facts Tab -->
+        <div x-show="activeTab === 'facts'" x-cloak>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-gray-700">长期事实列表</h2>
+                <button @click="openFactModal()" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm transition">
+                    + 新增事实
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <template x-for="fact in filteredFacts" :key="fact.id">
+                    <div class="card bg-white rounded-lg shadow p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="px-2 py-1 text-xs rounded-full" :class="categoryColor(fact.category)" x-text="fact.category"></span>
+                            <div class="flex space-x-1">
+                                <button @click="openFactModal(fact)" class="text-blue-500 hover:text-blue-700 text-sm">编辑</button>
+                                <button @click="deleteFact(fact.id)" class="text-red-500 hover:text-red-700 text-sm">删除</button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-700" x-text="fact.fact_text"></p>
+                        <div class="mt-3 flex justify-between text-xs text-gray-400">
+                            <span x-text="'QQ: ' + fact.user_id"></span>
+                            <span x-text="fact.created_at"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <p x-show="filteredFacts.length === 0" class="text-gray-400 text-center py-8">暂无事实数据</p>
+        </div>
+    </main>
+
+    <!-- User Modal -->
+    <div x-show="showUserModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50" @click.self="showUserModal = false">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-semibold mb-4" x-text="editingUser ? '编辑用户' : '新增用户'"></h3>
+            <form @submit.prevent="saveUser()">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">QQ号</label>
+                    <input type="text" x-model="userForm.user_id" :disabled="editingUser !== null"
+                           class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">备注</label>
+                    <textarea x-model="userForm.notes" rows="3"
+                              class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showUserModal = false" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alias Modal -->
+    <div x-show="showAliasModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50" @click.self="showAliasModal = false">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-semibold mb-4" x-text="editingAlias ? '编辑别名' : '新增别名'"></h3>
+            <form @submit.prevent="saveAlias()">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">QQ号</label>
+                    <input type="text" x-model="aliasForm.user_id" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">群号</label>
+                    <input type="text" x-model="aliasForm.group_id" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">称呼</label>
+                    <input type="text" x-model="aliasForm.called_name" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showAliasModal = false" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Fact Modal -->
+    <div x-show="showFactModal" class="fixed inset-0 modal-overlay flex items-center justify-center z-50" @click.self="showFactModal = false">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 class="text-lg font-semibold mb-4" x-text="editingFact ? '编辑事实' : '新增事实'"></h3>
+            <form @submit.prevent="saveFact()">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">QQ号</label>
+                    <input type="text" x-model="factForm.user_id" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">分类</label>
+                    <select x-model="factForm.category" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required>
+                        <option value="">请选择</option>
+                        <option value="兴趣">兴趣</option>
+                        <option value="关系">关系</option>
+                        <option value="习惯">习惯</option>
+                        <option value="喜好">喜好</option>
+                        <option value="经历">经历</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">事实内容</label>
+                    <textarea x-model="factForm.fact_text" rows="3" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400" required></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" @click="showFactModal = false" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition">取消</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function app() {
+            return {
+                activeTab: 'users',
+                filterUser: '',
+                users: [],
+                aliases: [],
+                facts: [],
+                stats: { users: 0, facts: 0 },
+                showUserModal: false,
+                showAliasModal: false,
+                showFactModal: false,
+                editingUser: null,
+                editingAlias: null,
+                editingFact: null,
+                userForm: { user_id: '', notes: '' },
+                aliasForm: { user_id: '', group_id: '', called_name: '' },
+                factForm: { user_id: '', category: '', fact_text: '' },
+
+                get filteredAliases() {
+                    return this.filterUser
+                        ? this.aliases.filter(a => a.user_id === this.filterUser)
+                        : this.aliases;
+                },
+
+                get filteredFacts() {
+                    return this.filterUser
+                        ? this.facts.filter(f => f.user_id === this.filterUser)
+                        : this.facts;
+                },
+
+                async init() {
+                    await this.refreshAll();
+                },
+
+                async refreshAll() {
+                    await Promise.all([this.loadUsers(), this.loadAliases(), this.loadFacts()]);
+                },
+
+                async loadUsers() {
+                    try {
+                        const res = await fetch('/api/users');
+                        const data = await res.json();
+                        this.users = data.data || [];
+                        this.stats.users = this.users.length;
+                    } catch (e) { console.error('Failed to load users:', e); }
+                },
+
+                async loadAliases() {
+                    try {
+                        const res = await fetch('/api/aliases');
+                        const data = await res.json();
+                        this.aliases = data.data || [];
+                    } catch (e) { console.error('Failed to load aliases:', e); }
+                },
+
+                async loadFacts() {
+                    try {
+                        const res = await fetch('/api/facts');
+                        const data = await res.json();
+                        this.facts = data.data || [];
+                        this.stats.facts = this.facts.length;
+                    } catch (e) { console.error('Failed to load facts:', e); }
+                },
+
+                // User CRUD
+                openUserModal(user = null) {
+                    this.editingUser = user;
+                    if (user) {
+                        this.userForm = { user_id: user.user_id, notes: user.notes || '' };
+                    } else {
+                        this.userForm = { user_id: '', notes: '' };
+                    }
+                    this.showUserModal = true;
+                },
+
+                async saveUser() {
+                    try {
+                        if (this.editingUser) {
+                            await fetch(`/api/users/${this.editingUser.user_id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ notes: this.userForm.notes })
+                            });
+                        } else {
+                            await fetch('/api/users', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(this.userForm)
+                            });
+                        }
+                        this.showUserModal = false;
+                        await this.loadUsers();
+                    } catch (e) { console.error('Failed to save user:', e); }
+                },
+
+                async deleteUser(userId) {
+                    if (!confirm(`确定要删除用户 ${userId} 及其所有关联数据吗？`)) return;
+                    try {
+                        await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+                        await this.refreshAll();
+                    } catch (e) { console.error('Failed to delete user:', e); }
+                },
+
+                // Alias CRUD
+                openAliasModal(alias = null) {
+                    this.editingAlias = alias;
+                    if (alias) {
+                        this.aliasForm = {
+                            user_id: alias.user_id,
+                            group_id: alias.group_id,
+                            called_name: alias.called_name
+                        };
+                    } else {
+                        this.aliasForm = { user_id: '', group_id: '', called_name: '' };
+                    }
+                    this.showAliasModal = true;
+                },
+
+                async saveAlias() {
+                    try {
+                        if (this.editingAlias) {
+                            await fetch(`/api/aliases/${this.editingAlias.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(this.aliasForm)
+                            });
+                        } else {
+                            await fetch('/api/aliases', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(this.aliasForm)
+                            });
+                        }
+                        this.showAliasModal = false;
+                        await this.loadAliases();
+                    } catch (e) { console.error('Failed to save alias:', e); }
+                },
+
+                async deleteAlias(id) {
+                    if (!confirm('确定要删除该别名吗？')) return;
+                    try {
+                        await fetch(`/api/aliases/${id}`, { method: 'DELETE' });
+                        await this.loadAliases();
+                    } catch (e) { console.error('Failed to delete alias:', e); }
+                },
+
+                // Fact CRUD
+                openFactModal(fact = null) {
+                    this.editingFact = fact;
+                    if (fact) {
+                        this.factForm = {
+                            user_id: fact.user_id,
+                            category: fact.category,
+                            fact_text: fact.fact_text
+                        };
+                    } else {
+                        this.factForm = { user_id: '', category: '', fact_text: '' };
+                    }
+                    this.showFactModal = true;
+                },
+
+                async saveFact() {
+                    try {
+                        if (this.editingFact) {
+                            await fetch(`/api/facts/${this.editingFact.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(this.factForm)
+                            });
+                        } else {
+                            await fetch('/api/facts', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(this.factForm)
+                            });
+                        }
+                        this.showFactModal = false;
+                        await this.loadFacts();
+                    } catch (e) { console.error('Failed to save fact:', e); }
+                },
+
+                async deleteFact(id) {
+                    if (!confirm('确定要删除该事实吗？')) return;
+                    try {
+                        await fetch(`/api/facts/${id}`, { method: 'DELETE' });
+                        await this.loadFacts();
+                    } catch (e) { console.error('Failed to delete fact:', e); }
+                },
+
+                categoryColor(cat) {
+                    const colors = {
+                        '兴趣': 'bg-green-100 text-green-700',
+                        '关系': 'bg-purple-100 text-purple-700',
+                        '习惯': 'bg-yellow-100 text-yellow-700',
+                        '喜好': 'bg-pink-100 text-pink-700',
+                        '经历': 'bg-blue-100 text-blue-700',
+                    };
+                    return colors[cat] || 'bg-gray-100 text-gray-700';
+                }
+            };
+        }
+    </script>
+</body>
+</html>
