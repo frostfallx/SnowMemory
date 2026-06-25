@@ -134,3 +134,29 @@ func InvalidateFactCache(userID string) {
 		factCache.DeleteByPrefix("facts:" + userID)
 	}
 }
+
+// ClearAllCaches 清空所有缓存
+func ClearAllCaches() {
+	if userCache != nil {
+		userCache.Clear()
+	}
+	if aliasCache != nil {
+		aliasCache.Clear()
+	}
+	if factCache != nil {
+		factCache.Clear()
+	}
+}
+
+// GetInstance 获取全局缓存实例
+func GetInstance(cacheType string) *MemoryCache {
+	switch cacheType {
+	case "user":
+		return userCache
+	case "alias":
+		return aliasCache
+	case "fact":
+		return factCache
+	}
+	return nil
+}

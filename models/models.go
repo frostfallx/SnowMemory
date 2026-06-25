@@ -29,9 +29,12 @@ type LongTermFact struct {
 
 // UserProfile 用户完整资料（用于 MCP 工具返回）
 type UserProfile struct {
-	User      *User         `json:"user"`
-	Aliases   []UserAlias   `json:"aliases"`
-	Facts     []LongTermFact `json:"facts"`
+	User        *User            `json:"user"`
+	Aliases     []UserAlias      `json:"aliases"`
+	Facts       []LongTermFact   `json:"facts"`
+	GlobalCalls []string         `json:"global_calls"`        // 全局称呼（所有群的称呼汇总）
+	CurrentCall string           `json:"current_call"`        // 当前群称呼
+	CallSummary map[string]string `json:"call_summary"`       // 群组称呼映射
 }
 
 // AliasRequest 学习用户称呼的请求

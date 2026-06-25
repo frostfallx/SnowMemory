@@ -66,8 +66,22 @@ func healthz(c *gin.Context) {
 	})
 }
 
-// listUsers 获取所有用户
+// listUsers 获取所有用户（支持分页）
 func listUsers(c *gin.Context) {
+	page := getQueryParam(c, "page", "1")
+	pageSize := getQueryParam(c, "page_size", "10")
+
+	pageNum, err := strconv.Atoi(page)
+	if err != nil || pageNum < 1 {
+		pageNum = 1
+	}
+	pageSz, err := strconv.Atoi(pageSize)
+	if err != nil || pageSz < 1 || pageSz > 100 {
+		pageSz = 10
+	}
+
+	offset := (pageNum - 1) * pageSz
+
 	userRepo := &database.UserRepository{}
 	users, err := userRepo.ListAllUsers()
 	if err != nil {
@@ -77,7 +91,38 @@ func listUsers(c *gin.Context) {
 	if users == nil {
 		users = []models.User{}
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": users})
+
+	// 分页
+	total := len(users)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + pageSz
+	if end > total {
+		end = total
+	}
+	pagedUsers := users[start:end]
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    pagedUsers,
+		"pagination": gin.H{
+			"total":     total,
+			"page":      pageNum,
+			"page_size": pageSz,
+			"total_pages": (total + pageSz - 1) / pageSz,
+		},
+	})
+}
+
+// getQueryParam 获取查询参数，提供默认值
+func getQueryParam(c *gin.Context, key, defaultValue string) string {
+	value := c.Query(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }
 
 // getUser 获取单个用户
@@ -188,8 +233,22 @@ func deleteUserCascade(userID string) error {
 	return userRepo.DeleteUser(userID)
 }
 
-// listAliases 获取所有别名
+// listAliases 获取所有别名（支持分页）
 func listAliases(c *gin.Context) {
+	page := getQueryParam(c, "page", "1")
+	pageSize := getQueryParam(c, "page_size", "10")
+
+	pageNum, err := strconv.Atoi(page)
+	if err != nil || pageNum < 1 {
+		pageNum = 1
+	}
+	pageSz, err := strconv.Atoi(pageSize)
+	if err != nil || pageSz < 1 || pageSz > 100 {
+		pageSz = 10
+	}
+
+	offset := (pageNum - 1) * pageSz
+
 	query := `SELECT id, user_id, group_id, called_name, created_at, updated_at FROM user_aliases ORDER BY updated_at DESC`
 	rows, err := database.GetDB().Query(query)
 	if err != nil {
@@ -210,7 +269,29 @@ func listAliases(c *gin.Context) {
 	if aliases == nil {
 		aliases = []models.UserAlias{}
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": aliases})
+
+	// 分页
+	total := len(aliases)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + pageSz
+	if end > total {
+		end = total
+	}
+	pagedAliases := aliases[start:end]
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    pagedAliases,
+		"pagination": gin.H{
+			"total":     total,
+			"page":      pageNum,
+			"page_size": pageSz,
+			"total_pages": (total + pageSz - 1) / pageSz,
+		},
+	})
 }
 
 // getAlias 获取单个别名
@@ -296,8 +377,22 @@ func deleteAlias(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]int{"id": id}})
 }
 
-// listFacts 获取所有长期事实
+// listFacts 获取所有长期事实（支持分页）
 func listFacts(c *gin.Context) {
+	page := getQueryParam(c, "page", "1")
+	pageSize := getQueryParam(c, "page_size", "10")
+
+	pageNum, err := strconv.Atoi(page)
+	if err != nil || pageNum < 1 {
+		pageNum = 1
+	}
+	pageSz, err := strconv.Atoi(pageSize)
+	if err != nil || pageSz < 1 || pageSz > 100 {
+		pageSz = 10
+	}
+
+	offset := (pageNum - 1) * pageSz
+
 	factRepo := &database.FactRepository{}
 	facts, err := factRepo.ListAllFacts()
 	if err != nil {
@@ -307,7 +402,29 @@ func listFacts(c *gin.Context) {
 	if facts == nil {
 		facts = []models.LongTermFact{}
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": facts})
+
+	// 分页
+	total := len(facts)
+	start := offset
+	if start > total {
+		start = total
+	}
+	end := start + pageSz
+	if end > total {
+		end = total
+	}
+	pagedFacts := facts[start:end]
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    pagedFacts,
+		"pagination": gin.H{
+			"total":     total,
+			"page":      pageNum,
+			"page_size": pageSz,
+			"total_pages": (total + pageSz - 1) / pageSz,
+		},
+	})
 }
 
 // getFact 获取单个长期事实

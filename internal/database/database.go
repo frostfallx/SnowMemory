@@ -39,6 +39,9 @@ func Init(dbPath string) error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
+	// 初始化缓存层（默认 TTL 5 分钟）
+	InitCache(5 * time.Minute)
+
 	// 初始化表结构
 	if err := initSchema(); err != nil {
 		return err

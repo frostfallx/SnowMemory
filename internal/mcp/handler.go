@@ -28,9 +28,12 @@ func QueryUserProfileMCP(ctx context.Context, request QueryUserProfileRequest) (
 
 	if user == nil {
 		return &models.UserProfile{
-			User:    &models.User{UserID: request.UserID},
-			Aliases: []models.UserAlias{},
-			Facts:   []models.LongTermFact{},
+			User:        &models.User{UserID: request.UserID},
+			Aliases:     []models.UserAlias{},
+			Facts:       []models.LongTermFact{},
+			GlobalCalls: []string{},
+			CurrentCall: "",
+			CallSummary: map[string]string{},
 		}, nil
 	}
 
@@ -46,10 +49,33 @@ func QueryUserProfileMCP(ctx context.Context, request QueryUserProfileRequest) (
 		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("failed to query facts: %v", err)}
 	}
 
+	// 构建群组称呼映射
+	callSummary := make(map[string]string)
+	var globalCalls []string
+	var currentCall string
+
+	for _, alias := range aliases {
+		callSummary[alias.GroupID] = alias.CalledName
+		globalCalls = append(globalCalls, alias.CalledName)
+
+		// 如果是当前群，记录当前称呼
+		if alias.GroupID == request.GroupID {
+			currentCall = alias.CalledName
+		}
+	}
+
+	// 如果当前群没有称呼，使用全局第一个称呼或空字符串
+	if currentCall == "" && len(globalCalls) > 0 {
+		currentCall = globalCalls[0]
+	}
+
 	return &models.UserProfile{
-		User:    user,
-		Aliases: aliases,
-		Facts:   facts,
+		User:        user,
+		Aliases:     aliases,
+		Facts:       facts,
+		GlobalCalls: globalCalls,
+		CurrentCall: currentCall,
+		CallSummary: callSummary,
 	}, nil
 }
 
