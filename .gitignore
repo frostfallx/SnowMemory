@@ -1,0 +1,38 @@
+# Binary executable
+snowmemory.exe
+
+# Data files
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+*.o
+*.a
+*.so
+
+# Go module cache (optional, uncomment if needed)
+# /vendor
+
+# Test coverage
+*.cover
+_test/
+
+# Log files
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
