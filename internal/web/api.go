@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -48,6 +49,11 @@ func NewAPIServer() *APIServer {
 		api.POST("/facts", createFact)
 		api.PUT("/facts/:id", updateFact)
 		api.DELETE("/facts/:id", deleteFact)
+
+		// 数据导出
+		api.GET("/export", exportData)
+		// 数据导入
+		api.POST("/import", importData)
 	}
 
 	return &APIServer{engine: engine}
@@ -509,3 +515,151 @@ func deleteFact(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]int{"id": id}})
 }
+
+// ExportData 数据导出请求/响应
+type ExportData struct {
+	Users       []models.User       `json:"users"`
+	Aliases     []models.UserAlias  `json:"aliases"`
+	Facts       []models.LongTermFact `json:"facts"`
+	ExportedAt  string              `json:"exported_at"`
+}
+
+// exportData 导出所有数据
+func exportData(c *gin.Context) {
+	// 获取查询参数决定导出格式
+	format := c.Query("format")
+	if format == "" {
+		format = "json"
+	}
+
+	userRepo := &database.UserRepository{}
+	users, err := userRepo.ListAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if users == nil {
+		users = []models.User{}
+	}
+
+	aliasRepo := &database.AliasRepository{}
+	aliases, err := aliasRepo.GetUserAliases("")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if aliases == nil {
+		aliases = []models.UserAlias{}
+	}
+
+	factRepo := &database.FactRepository{}
+	facts, err := factRepo.ListAllFacts()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if facts == nil {
+		facts = []models.LongTermFact{}
+	}
+
+	exportedAt := "now"
+	if format == "csv" {
+		// 导出为 CSV 格式
+		c.Header("Content-Type", "text/csv; charset=utf-8")
+		c.Header("Content-Disposition", "attachment; filename=snowmemory_export.csv")
+
+		// 构建 CSV 内容
+		csv := "type,user_id,group_id,called_name,category,fact_text,created_at,updated_at\n"
+		for _, u := range users {
+			csv += fmt.Sprintf("user,%s,,,,,%s,\n", u.UserID, u.CreatedAt)
+		}
+		for _, a := range aliases {
+			csv += fmt.Sprintf("alias,%s,%s,%s,,,,\n", a.UserID, a.GroupID, a.CalledName)
+		}
+		for _, f := range facts {
+			csv += fmt.Sprintf("fact,%s,,,,%s,%s,\n", f.UserID, f.FactText, f.CreatedAt)
+		}
+		c.Data(http.StatusOK, "text/csv; charset=utf-8", []byte(csv))
+	} else {
+		// 默认 JSON 格式
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": ExportData{
+				Users:      users,
+				Aliases:    aliases,
+				Facts:      facts,
+				ExportedAt: exportedAt,
+			},
+		})
+	}
+}
+
+// ImportData 数据导入请求
+type ImportData struct {
+	Users      []models.User       `json:"users"`
+	Aliases    []models.UserAlias  `json:"aliases"`
+	Facts      []models.LongTermFact `json:"facts"`
+}
+
+// importData 导入数据
+func importData(c *gin.Context) {
+	var req ImportData
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON: " + err.Error()})
+		return
+	}
+
+	importedUsers := 0
+	importedAliases := 0
+	importedFacts := 0
+
+	// 导入用户
+	userRepo := &database.UserRepository{}
+	for _, user := range req.Users {
+		existing, _ := userRepo.GetUserByID(user.UserID)
+		if existing == nil {
+			if err := userRepo.CreateUser(user.UserID); err == nil {
+				importedUsers++
+			}
+		}
+	}
+
+	// 导入别名
+	aliasRepo := &database.AliasRepository{}
+	for _, alias := range req.Aliases {
+		existing, _ := aliasRepo.GetUserAliasInGroup(alias.UserID, alias.GroupID)
+		if existing == nil {
+			aliasReq := &models.UserAlias{
+				UserID:     alias.UserID,
+				GroupID:    alias.GroupID,
+				CalledName: alias.CalledName,
+			}
+			if err := aliasRepo.UpsertAlias(aliasReq); err == nil {
+				importedAliases++
+			}
+		}
+	}
+
+	// 导入事实
+	factRepo := &database.FactRepository{}
+	for _, fact := range req.Facts {
+		factReq := &models.LongTermFact{
+			UserID:   fact.UserID,
+			Category: fact.Category,
+			FactText: fact.FactText,
+		}
+		if err := factRepo.CreateFact(factReq); err == nil {
+			importedFacts++
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"users":      importedUsers,
+			"aliases":    importedAliases,
+			"facts":      importedFacts,
+		},
+	})
+}
+
