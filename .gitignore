@@ -5,6 +5,7 @@ snowmemory.exe
 data/*.db
 data/*.db-shm
 data/*.db-wal
+cmd/mcp-server/data/
 
 # IDE/Editor
 .idea/
