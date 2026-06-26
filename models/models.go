@@ -56,3 +56,15 @@ type QueryRequest struct {
 	UserID string `json:"user_id"`
 	GroupID string `json:"group_id"`
 }
+
+// SearchResult 搜索结果
+type SearchResult struct {
+	Users  []User           `json:"users"`
+	Aliases []UserAlias      `json:"aliases"`
+	Facts   []LongTermFact   `json:"facts"`
+}
+
+// SearchRequest 搜索请求
+type SearchRequest struct {
+	Keyword string `json:"keyword"`
+}

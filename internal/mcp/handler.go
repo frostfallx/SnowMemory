@@ -165,3 +165,43 @@ func ExtractAndStoreFactMCP(ctx context.Context, request ExtractAndStoreFactRequ
 
 	return map[string]string{"status": "ok"}, nil
 }
+
+// SearchMemoryRequest 搜索记忆请求
+type SearchMemoryRequest struct {
+	Keyword string `json:"keyword"`
+}
+
+// SearchMemoryMCP 根据关键词搜索记忆的 MCP 工具
+func SearchMemoryMCP(ctx context.Context, request SearchMemoryRequest) (any, error) {
+	if request.Keyword == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "keyword is required"}
+	}
+
+	userRepo := &database.UserRepository{}
+	aliasRepo := &database.AliasRepository{}
+	factRepo := &database.FactRepository{}
+
+	// 搜索用户（通过别名或事实匹配）
+	users, err := userRepo.SearchUsersByKeyword(request.Keyword)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("failed to search users: %v", err)}
+	}
+
+	// 搜索别名
+	aliases, err := aliasRepo.SearchAliasesByKeyword(request.Keyword)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("failed to search aliases: %v", err)}
+	}
+
+	// 搜索长期事实
+	facts, err := factRepo.SearchFactsByKeyword(request.Keyword)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("failed to search facts: %v", err)}
+	}
+
+	return &models.SearchResult{
+		Users:   users,
+		Aliases: aliases,
+		Facts:   facts,
+	}, nil
+}

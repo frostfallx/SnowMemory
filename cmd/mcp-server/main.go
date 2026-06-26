@@ -109,6 +109,22 @@ func registerMCPTools(s *internalmcp.Server) {
 			return internalmcp.ExtractAndStoreFactMCP(ctx, req)
 		},
 	})
+
+	s.RegisterTool(internalmcp.Tool{
+		Name:        "search_memory",
+		Description: "根据关键词搜索用户记忆，包括别名和长期事实。示例：搜索'舞萌'可以找到喜欢玩舞萌的用户",
+		InputSchema: internalmcp.Schema{
+			Type: "object",
+			Properties: map[string]*internalmcp.Schema{
+				"keyword": {Type: "string"},
+			},
+			Required: []string{"keyword"},
+		},
+		Handler: func(ctx context.Context, params map[string]any) (any, error) {
+			req := mapToSearchRequest(params)
+			return internalmcp.SearchMemoryMCP(ctx, req)
+		},
+	})
 }
 
 // runMCPStdio 通过 stdio 运行 MCP JSON-RPC 服务
@@ -238,6 +254,22 @@ func runMCPStdio(s *internalmcp.Server) {
 			resp := internalmcp.NewJSONRPCResponse(result, id)
 			encoder.Encode(resp)
 
+		case "search_memory":
+			req := mapToSearchRequest(params)
+			result, err := internalmcp.SearchMemoryMCP(context.Background(), req)
+			if err != nil {
+				if mcpErr, ok := err.(*internalmcp.JSONRPCError); ok {
+					resp := internalmcp.NewJSONRPCErrorResponse(mcpErr.Code, mcpErr.Message, mcpErr.Data, id)
+					encoder.Encode(resp)
+				} else {
+					resp := internalmcp.NewJSONRPCErrorResponse(-32000, err.Error(), "", id)
+					encoder.Encode(resp)
+				}
+				continue
+			}
+			resp := internalmcp.NewJSONRPCResponse(result, id)
+			encoder.Encode(resp)
+
 		default:
 			resp := internalmcp.NewJSONRPCErrorResponse(-32601, "method not found: "+method, "", id)
 			encoder.Encode(resp)
@@ -293,6 +325,12 @@ func mapToFactRequest(params map[string]any) internalmcp.ExtractAndStoreFactRequ
 		UserID:   getString(params, "user_id"),
 		Category: getString(params, "category"),
 		FactText: getString(params, "fact_text"),
+	}
+}
+
+func mapToSearchRequest(params map[string]any) internalmcp.SearchMemoryRequest {
+	return internalmcp.SearchMemoryRequest{
+		Keyword: getString(params, "keyword"),
 	}
 }
 

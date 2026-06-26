@@ -611,6 +611,109 @@ func (r *FactRepository) ListAllFacts() ([]models.LongTermFact, error) {
 	return facts, rows.Err()
 }
 
+// SearchUsersByKeyword 根据关键词搜索用户（在别名和长期事实中搜索）
+func (r *UserRepository) SearchUsersByKeyword(keyword string) ([]models.User, error) {
+	if keyword == "" {
+		return nil, nil
+	}
+
+	// 使用参数化查询防止 SQL 注入
+	searchPattern := "%" + keyword + "%"
+
+	// 查询匹配的用户 ID（去重）
+	query := `
+		SELECT DISTINCT u.user_id, u.created_at, u.updated_at, u.notes
+		FROM users u
+		LEFT JOIN user_aliases ua ON u.user_id = ua.user_id
+		LEFT JOIN long_term_facts lf ON u.user_id = lf.user_id
+		WHERE ua.called_name LIKE ?
+		   OR lf.fact_text LIKE ?
+		   OR u.user_id LIKE ?
+		ORDER BY u.created_at DESC
+	`
+
+	rows, err := GetDB().Query(query, searchPattern, searchPattern, searchPattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.User
+	for rows.Next() {
+		var user models.User
+		var notes sql.NullString
+		if err := rows.Scan(&user.UserID, &user.CreatedAt, &user.UpdatedAt, &notes); err != nil {
+			return nil, err
+		}
+		// 处理 NULL notes 字段
+		if notes.Valid {
+			user.Notes = notes.String
+		} else {
+			user.Notes = ""
+		}
+		users = append(users, user)
+	}
+	return users, rows.Err()
+}
+
+// SearchAliasesByKeyword 根据关键词搜索别名
+func (r *AliasRepository) SearchAliasesByKeyword(keyword string) ([]models.UserAlias, error) {
+	if keyword == "" {
+		return nil, nil
+	}
+
+	query := `SELECT id, user_id, group_id, called_name, created_at, updated_at
+	          FROM user_aliases
+	          WHERE called_name LIKE ?
+	          ORDER BY updated_at DESC`
+	searchPattern := "%" + keyword + "%"
+
+	rows, err := GetDB().Query(query, searchPattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var aliases []models.UserAlias
+	for rows.Next() {
+		var alias models.UserAlias
+		if err := rows.Scan(&alias.ID, &alias.UserID, &alias.GroupID, &alias.CalledName, &alias.CreatedAt, &alias.UpdatedAt); err != nil {
+			return nil, err
+		}
+		aliases = append(aliases, alias)
+	}
+	return aliases, rows.Err()
+}
+
+// SearchFactsByKeyword 根据关键词搜索长期事实
+func (r *FactRepository) SearchFactsByKeyword(keyword string) ([]models.LongTermFact, error) {
+	if keyword == "" {
+		return nil, nil
+	}
+
+	query := `SELECT id, user_id, category, fact_text, created_at
+	          FROM long_term_facts
+	          WHERE fact_text LIKE ?
+	          ORDER BY created_at DESC`
+	searchPattern := "%" + keyword + "%"
+
+	rows, err := GetDB().Query(query, searchPattern)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var facts []models.LongTermFact
+	for rows.Next() {
+		var fact models.LongTermFact
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &fact.CreatedAt); err != nil {
+			return nil, err
+		}
+		facts = append(facts, fact)
+	}
+	return facts, rows.Err()
+}
+
 // Cache 辅助函数（导出给外部使用）
 func GetUserCache() *MemoryCache {
 	return userCache
