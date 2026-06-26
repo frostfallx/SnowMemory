@@ -36,3 +36,6 @@ _test/
 tmp/
 temp/
 *.tmp
+
+# IDE/Editor specific
+cmd/mcp-server/1.bat
