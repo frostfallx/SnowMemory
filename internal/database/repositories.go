@@ -29,17 +29,24 @@ func (r *UserRepository) GetUserByID(userID string) (*models.User, error) {
 
 	query := `SELECT user_id, created_at, updated_at, notes FROM users WHERE user_id = ?`
 	var user models.User
+	var notes sql.NullString
 	err := GetDB().QueryRow(query, userID).Scan(
 		&user.UserID,
 		&user.CreatedAt,
 		&user.UpdatedAt,
-		&user.Notes,
+		&notes,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
+	}
+	// 处理 NULL notes 字段
+	if notes.Valid {
+		user.Notes = notes.String
+	} else {
+		user.Notes = ""
 	}
 
 	// 写入缓存
@@ -166,8 +173,15 @@ func (r *UserRepository) ListAllUsers() ([]models.User, error) {
 	var users []models.User
 	for rows.Next() {
 		var user models.User
-		if err := rows.Scan(&user.UserID, &user.CreatedAt, &user.UpdatedAt, &user.Notes); err != nil {
+		var notes sql.NullString
+		if err := rows.Scan(&user.UserID, &user.CreatedAt, &user.UpdatedAt, &notes); err != nil {
 			return nil, err
+		}
+		// 处理 NULL notes 字段
+		if notes.Valid {
+			user.Notes = notes.String
+		} else {
+			user.Notes = ""
 		}
 		users = append(users, user)
 	}
