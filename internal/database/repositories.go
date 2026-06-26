@@ -482,8 +482,12 @@ func (r *FactRepository) CreateFact(fact *models.LongTermFact) error {
 	}
 	defer tx.Rollback()
 
-	query := `INSERT INTO long_term_facts (user_id, category, fact_text) VALUES (?, ?, ?)`
-	_, err = tx.Exec(query, fact.UserID, fact.Category, fact.FactText)
+	query := `INSERT INTO long_term_facts (user_id, category, fact_text, is_common) VALUES (?, ?, ?, ?)`
+	isCommon := 0
+	if fact.IsCommon {
+		isCommon = 1
+	}
+	_, err = tx.Exec(query, fact.UserID, fact.Category, fact.FactText, isCommon)
 	if err != nil {
 		return err
 	}
@@ -593,7 +597,29 @@ func (r *FactRepository) DeleteFactsByCategory(userID, category string) error {
 
 // ListAllFacts 列出所有长期事实
 func (r *FactRepository) ListAllFacts() ([]models.LongTermFact, error) {
-	query := `SELECT id, user_id, category, fact_text, created_at FROM long_term_facts ORDER BY created_at DESC`
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at FROM long_term_facts ORDER BY created_at DESC`
+	rows, err := GetDB().Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var facts []models.LongTermFact
+	for rows.Next() {
+		var fact models.LongTermFact
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt); err != nil {
+			return nil, err
+		}
+		fact.IsCommon = isCommon == 1
+		facts = append(facts, fact)
+	}
+	return facts, rows.Err()
+}
+
+// ListCommonFacts 列出所有常识（is_common = 1）
+func (r *FactRepository) ListCommonFacts() ([]models.LongTermFact, error) {
+	query := `SELECT id, user_id, category, fact_text, created_at FROM long_term_facts WHERE is_common = 1 ORDER BY created_at DESC`
 	rows, err := GetDB().Query(query)
 	if err != nil {
 		return nil, err
@@ -606,6 +632,29 @@ func (r *FactRepository) ListAllFacts() ([]models.LongTermFact, error) {
 		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &fact.CreatedAt); err != nil {
 			return nil, err
 		}
+		fact.IsCommon = true
+		facts = append(facts, fact)
+	}
+	return facts, rows.Err()
+}
+
+// ListUserFacts 列出指定用户的所有事实
+func (r *FactRepository) ListUserFacts(userID string) ([]models.LongTermFact, error) {
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at FROM long_term_facts WHERE user_id = ? ORDER BY created_at DESC`
+	rows, err := GetDB().Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var facts []models.LongTermFact
+	for rows.Next() {
+		var fact models.LongTermFact
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt); err != nil {
+			return nil, err
+		}
+		fact.IsCommon = isCommon == 1
 		facts = append(facts, fact)
 	}
 	return facts, rows.Err()

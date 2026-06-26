@@ -24,6 +24,7 @@ type LongTermFact struct {
 	UserID    string `json:"user_id" db:"user_id"`
 	Category  string `json:"category" db:"category"`
 	FactText  string `json:"fact_text" db:"fact_text"`
+	IsCommon  bool   `json:"is_common" db:"is_common"` // 是否为常识（所有人都适用）
 	CreatedAt string `json:"created_at" db:"created_at"`
 }
 

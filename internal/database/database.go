@@ -47,6 +47,11 @@ func Init(dbPath string) error {
 		return err
 	}
 
+	// 运行迁移
+	if err := Migrate(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -99,6 +104,7 @@ func initSchema() error {
 		user_id TEXT NOT NULL,
 		category TEXT NOT NULL,
 		fact_text TEXT NOT NULL,
+		is_common INTEGER DEFAULT 0,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(user_id)
 	);`

@@ -125,6 +125,39 @@ func registerMCPTools(s *internalmcp.Server) {
 			return internalmcp.SearchMemoryMCP(ctx, req)
 		},
 	})
+
+	s.RegisterTool(internalmcp.Tool{
+		Name:        "create_common_fact",
+		Description: "创建常识（所有人都适用的规则）。示例：bot规定'所有git提交必须遵循angular规范'",
+		InputSchema: internalmcp.Schema{
+			Type: "object",
+			Properties: map[string]*internalmcp.Schema{
+				"category":  {Type: "string"},
+				"fact_text": {Type: "string"},
+			},
+			Required: []string{"category", "fact_text"},
+		},
+		Handler: func(ctx context.Context, params map[string]any) (any, error) {
+			req := mapToCreateCommonFactRequest(params)
+			return internalmcp.CreateCommonFactMCP(ctx, req)
+		},
+	})
+
+	s.RegisterTool(internalmcp.Tool{
+		Name:        "get_user_facts",
+		Description: "获取指定用户的所有记忆事实（包括别名和长期事实）",
+		InputSchema: internalmcp.Schema{
+			Type: "object",
+			Properties: map[string]*internalmcp.Schema{
+				"user_id": {Type: "string"},
+			},
+			Required: []string{"user_id"},
+		},
+		Handler: func(ctx context.Context, params map[string]any) (any, error) {
+			req := mapToGetUserFactsRequest(params)
+			return internalmcp.GetUserFactsMCP(ctx, req)
+		},
+	})
 }
 
 // runMCPStdio 通过 stdio 运行 MCP JSON-RPC 服务
@@ -331,6 +364,19 @@ func mapToFactRequest(params map[string]any) internalmcp.ExtractAndStoreFactRequ
 func mapToSearchRequest(params map[string]any) internalmcp.SearchMemoryRequest {
 	return internalmcp.SearchMemoryRequest{
 		Keyword: getString(params, "keyword"),
+	}
+}
+
+func mapToCreateCommonFactRequest(params map[string]any) internalmcp.CreateCommonFactRequest {
+	return internalmcp.CreateCommonFactRequest{
+		Category: getString(params, "category"),
+		FactText: getString(params, "fact_text"),
+	}
+}
+
+func mapToGetUserFactsRequest(params map[string]any) internalmcp.GetUserFactsRequest {
+	return internalmcp.GetUserFactsRequest{
+		UserID: getString(params, "user_id"),
 	}
 }
 

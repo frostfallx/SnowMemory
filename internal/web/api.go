@@ -50,6 +50,14 @@ func NewAPIServer() *APIServer {
 		api.PUT("/facts/:id", updateFact)
 		api.DELETE("/facts/:id", deleteFact)
 
+		// 常识管理
+		api.GET("/common-facts", listCommonFacts)
+		api.POST("/common-facts", createCommonFact)
+		api.DELETE("/common-facts/:id", deleteCommonFact)
+
+		// 用户事实
+		api.GET("/users/:user_id/facts", listUserFacts)
+
 		// 数据导出
 		api.GET("/export", exportData)
 		// 数据导入
@@ -514,6 +522,87 @@ func deleteFact(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]int{"id": id}})
+}
+
+// listCommonFacts 获取所有常识
+func listCommonFacts(c *gin.Context) {
+	factRepo := &database.FactRepository{}
+	facts, err := factRepo.ListCommonFacts()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if facts == nil {
+		facts = []models.LongTermFact{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    facts,
+	})
+}
+
+// createCommonFact 创建常识
+func createCommonFact(c *gin.Context) {
+	var req struct {
+		Category string `json:"category" binding:"required"`
+		FactText string `json:"fact_text" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	factRepo := &database.FactRepository{}
+	fact := &models.LongTermFact{
+		UserID:   "common",
+		Category: req.Category,
+		FactText: req.FactText,
+		IsCommon: true,
+	}
+
+	if err := factRepo.CreateFact(fact); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"success": true, "data": fact})
+}
+
+// deleteCommonFact 删除常识
+func deleteCommonFact(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	factRepo := &database.FactRepository{}
+	if err := factRepo.DeleteFact(id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]int{"id": id}})
+}
+
+// listUserFacts 获取指定用户的所有事实
+func listUserFacts(c *gin.Context) {
+	userID := c.Param("user_id")
+
+	factRepo := &database.FactRepository{}
+	facts, err := factRepo.ListUserFacts(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if facts == nil {
+		facts = []models.LongTermFact{}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    facts,
+	})
 }
 
 // ExportData 数据导出请求/响应

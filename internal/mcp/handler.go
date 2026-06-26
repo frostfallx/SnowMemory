@@ -166,6 +166,53 @@ func ExtractAndStoreFactMCP(ctx context.Context, request ExtractAndStoreFactRequ
 	return map[string]string{"status": "ok"}, nil
 }
 
+// CreateCommonFactRequest 创建常识请求
+type CreateCommonFactRequest struct {
+	Category string `json:"category"`
+	FactText string `json:"fact_text"`
+}
+
+// CreateCommonFactMCP 创建常识（所有人都适用）的 MCP 工具
+func CreateCommonFactMCP(ctx context.Context, request CreateCommonFactRequest) (any, error) {
+	if request.FactText == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "fact_text is required"}
+	}
+
+	factRepo := &database.FactRepository{}
+	fact := &models.LongTermFact{
+		UserID:   "common", // 特殊用户ID表示常识
+		Category: request.Category,
+		FactText: request.FactText,
+		IsCommon: true,
+	}
+
+	if err := factRepo.CreateFact(fact); err != nil {
+		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("failed to store fact: %v", err)}
+	}
+
+	return map[string]string{"status": "ok"}, nil
+}
+
+// GetUserFactsRequest 获取用户事实请求
+type GetUserFactsRequest struct {
+	UserID string `json:"user_id"`
+}
+
+// GetUserFactsMCP 获取指定用户所有事实的 MCP 工具
+func GetUserFactsMCP(ctx context.Context, request GetUserFactsRequest) (any, error) {
+	if request.UserID == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "user_id is required"}
+	}
+
+	factRepo := &database.FactRepository{}
+	facts, err := factRepo.ListUserFacts(request.UserID)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("failed to get facts: %v", err)}
+	}
+
+	return facts, nil
+}
+
 // SearchMemoryRequest 搜索记忆请求
 type SearchMemoryRequest struct {
 	Keyword string `json:"keyword"`
