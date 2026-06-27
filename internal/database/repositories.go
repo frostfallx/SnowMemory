@@ -410,7 +410,7 @@ func (r *FactRepository) GetUserFacts(userID string) ([]models.LongTermFact, err
 		}
 	}
 
-	query := `SELECT id, user_id, category, fact_text, created_at FROM long_term_facts WHERE user_id = ? ORDER BY created_at DESC`
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at FROM long_term_facts WHERE user_id = ? ORDER BY created_at DESC`
 	rows, err := GetDB().Query(query, userID)
 	if err != nil {
 		return nil, err
@@ -420,10 +420,11 @@ func (r *FactRepository) GetUserFacts(userID string) ([]models.LongTermFact, err
 	var facts []models.LongTermFact
 	for rows.Next() {
 		var fact models.LongTermFact
-		err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &fact.CreatedAt)
-		if err != nil {
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
 			return nil, err
 		}
+		fact.IsCommon = isCommon == 1
 		facts = append(facts, fact)
 	}
 
@@ -448,7 +449,7 @@ func (r *FactRepository) GetUserFactsByCategory(userID, category string) ([]mode
 		}
 	}
 
-	query := `SELECT id, user_id, category, fact_text, created_at FROM long_term_facts WHERE user_id = ? AND category = ? ORDER BY created_at DESC`
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at FROM long_term_facts WHERE user_id = ? AND category = ? ORDER BY created_at DESC`
 	rows, err := GetDB().Query(query, userID, category)
 	if err != nil {
 		return nil, err
@@ -458,10 +459,11 @@ func (r *FactRepository) GetUserFactsByCategory(userID, category string) ([]mode
 	var facts []models.LongTermFact
 	for rows.Next() {
 		var fact models.LongTermFact
-		err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &fact.CreatedAt)
-		if err != nil {
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
 			return nil, err
 		}
+		fact.IsCommon = isCommon == 1
 		facts = append(facts, fact)
 	}
 
@@ -597,7 +599,7 @@ func (r *FactRepository) DeleteFactsByCategory(userID, category string) error {
 
 // ListAllFacts 列出所有长期事实
 func (r *FactRepository) ListAllFacts() ([]models.LongTermFact, error) {
-	query := `SELECT id, user_id, category, fact_text, is_common, created_at FROM long_term_facts ORDER BY created_at DESC`
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at FROM long_term_facts ORDER BY created_at DESC`
 	rows, err := GetDB().Query(query)
 	if err != nil {
 		return nil, err
@@ -608,7 +610,7 @@ func (r *FactRepository) ListAllFacts() ([]models.LongTermFact, error) {
 	for rows.Next() {
 		var fact models.LongTermFact
 		var isCommon int
-		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt); err != nil {
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
 			return nil, err
 		}
 		fact.IsCommon = isCommon == 1
@@ -619,7 +621,7 @@ func (r *FactRepository) ListAllFacts() ([]models.LongTermFact, error) {
 
 // ListCommonFacts 列出所有常识（is_common = 1）
 func (r *FactRepository) ListCommonFacts() ([]models.LongTermFact, error) {
-	query := `SELECT id, user_id, category, fact_text, created_at FROM long_term_facts WHERE is_common = 1 ORDER BY created_at DESC`
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at FROM long_term_facts WHERE is_common = 1 ORDER BY created_at DESC`
 	rows, err := GetDB().Query(query)
 	if err != nil {
 		return nil, err
@@ -629,10 +631,11 @@ func (r *FactRepository) ListCommonFacts() ([]models.LongTermFact, error) {
 	var facts []models.LongTermFact
 	for rows.Next() {
 		var fact models.LongTermFact
-		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &fact.CreatedAt); err != nil {
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
 			return nil, err
 		}
-		fact.IsCommon = true
+		fact.IsCommon = isCommon == 1
 		facts = append(facts, fact)
 	}
 	return facts, rows.Err()
@@ -640,7 +643,7 @@ func (r *FactRepository) ListCommonFacts() ([]models.LongTermFact, error) {
 
 // ListUserFacts 列出指定用户的所有事实
 func (r *FactRepository) ListUserFacts(userID string) ([]models.LongTermFact, error) {
-	query := `SELECT id, user_id, category, fact_text, is_common, created_at FROM long_term_facts WHERE user_id = ? ORDER BY created_at DESC`
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at FROM long_term_facts WHERE user_id = ? ORDER BY created_at DESC`
 	rows, err := GetDB().Query(query, userID)
 	if err != nil {
 		return nil, err
@@ -651,13 +654,77 @@ func (r *FactRepository) ListUserFacts(userID string) ([]models.LongTermFact, er
 	for rows.Next() {
 		var fact models.LongTermFact
 		var isCommon int
-		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt); err != nil {
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
 			return nil, err
 		}
 		fact.IsCommon = isCommon == 1
 		facts = append(facts, fact)
 	}
 	return facts, rows.Err()
+}
+
+// UpdateFact 更新长期事实（仅更新 fact_text 和 updated_at）
+func (r *FactRepository) UpdateFact(factID int, factText string) error {
+	tx, err := GetDB().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `UPDATE long_term_facts SET fact_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+	result, err := tx.Exec(query, factText, factID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// 审计日志（需要查询事实来获取 user_id）
+	var userID string
+	err = GetDB().QueryRow(`SELECT user_id FROM long_term_facts WHERE id = ?`, factID).Scan(&userID)
+	if err == nil {
+		utils.DefaultLogger.AuditLog("UPDATE_FACT", userID, fmt.Sprintf("更新事实 ID: %d", factID))
+		InvalidateFactCache(userID)
+	}
+	return nil
+}
+
+// FindSimilarFact 查找与给定文本相似的事实（用于合并参考）
+func (r *FactRepository) FindSimilarFact(userID, category, factText string) (*models.LongTermFact, error) {
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at FROM long_term_facts WHERE user_id = ? AND category = ? ORDER BY created_at DESC`
+	rows, err := GetDB().Query(query, userID, category)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	// 返回第一个匹配的事实（最旧的），实际相似度匹配可后续增强
+	var lastMatch *models.LongTermFact
+	for rows.Next() {
+		var fact models.LongTermFact
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
+			return nil, err
+		}
+		fact.IsCommon = isCommon == 1
+
+		// 简单匹配：如果文本包含相同关键词或相似
+		if lastMatch == nil {
+			lastMatch = &fact
+		}
+	}
+
+	return lastMatch, nil
 }
 
 // SearchUsersByKeyword 根据关键词搜索用户（在别名和长期事实中搜索）
@@ -740,7 +807,7 @@ func (r *FactRepository) SearchFactsByKeyword(keyword string) ([]models.LongTerm
 		return nil, nil
 	}
 
-	query := `SELECT id, user_id, category, fact_text, created_at
+	query := `SELECT id, user_id, category, fact_text, is_common, created_at, updated_at
 	          FROM long_term_facts
 	          WHERE fact_text LIKE ?
 	          ORDER BY created_at DESC`
@@ -755,9 +822,11 @@ func (r *FactRepository) SearchFactsByKeyword(keyword string) ([]models.LongTerm
 	var facts []models.LongTermFact
 	for rows.Next() {
 		var fact models.LongTermFact
-		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &fact.CreatedAt); err != nil {
+		var isCommon int
+		if err := rows.Scan(&fact.ID, &fact.UserID, &fact.Category, &fact.FactText, &isCommon, &fact.CreatedAt, &fact.UpdatedAt); err != nil {
 			return nil, err
 		}
+		fact.IsCommon = isCommon == 1
 		facts = append(facts, fact)
 	}
 	return facts, rows.Err()

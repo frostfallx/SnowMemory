@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/vmwin11/snowmemory/internal/curator"
 	"github.com/vmwin11/snowmemory/internal/database"
 	"github.com/vmwin11/snowmemory/models"
 )
@@ -57,6 +58,9 @@ func NewAPIServer() *APIServer {
 
 		// 用户事实
 		api.GET("/users/:user_id/facts", listUserFacts)
+
+		// 数据分析（记忆整理子代理）
+		api.POST("/analyze", analyzeConversation)
 
 		// 数据导出
 		api.GET("/export", exportData)
@@ -487,25 +491,38 @@ func updateFact(c *gin.Context) {
 		return
 	}
 
-	var req models.LongTermFact
+	var req struct {
+		FactText string `json:"fact_text" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	query := `UPDATE long_term_facts SET user_id = ?, category = ?, fact_text = ? WHERE id = ?`
-	result, err := database.GetDB().Exec(query, req.UserID, req.Category, req.FactText, id)
-	if err != nil {
+	factRepo := &database.FactRepository{}
+	if err := factRepo.UpdateFact(id, req.FactText); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]int{"id": id}})
+}
 
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "fact not found"})
+// analyzeConversation 分析对话并自动记忆
+func analyzeConversation(c *gin.Context) {
+	var req models.AnalyzeConversationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "data": map[string]int{"id": id}})
+
+	// 调用 Curator 进行分析
+	resp, err := curator.AnalyzeConversationHTTP(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("curator analysis failed: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // deleteFact 删除长期事实

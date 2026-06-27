@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/vmwin11/snowmemory/internal/curator"
 	"github.com/vmwin11/snowmemory/internal/database"
 	"github.com/vmwin11/snowmemory/models"
 )
@@ -251,4 +252,29 @@ func SearchMemoryMCP(ctx context.Context, request SearchMemoryRequest) (any, err
 		Aliases: aliases,
 		Facts:   facts,
 	}, nil
+}
+
+// AnalyzeConversationRequest 分析对话请求
+type AnalyzeConversationRequest struct {
+	UserID           string `json:"user_id"`
+	GroupID          string `json:"group_id"`
+	ConversationText string `json:"conversation_text"`
+}
+
+// AnalyzeConversationMCP 分析对话并自动记忆的 MCP 工具
+func AnalyzeConversationMCP(ctx context.Context, request AnalyzeConversationRequest) (any, error) {
+	if request.UserID == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "user_id is required"}
+	}
+	if request.ConversationText == "" {
+		return nil, &JSONRPCError{Code: -32602, Message: "conversation_text is required"}
+	}
+
+	// 调用 Curator 进行分析
+	resp, err := curator.AnalyzeConversationMCP(ctx, request.UserID, request.GroupID, request.ConversationText)
+	if err != nil {
+		return nil, &JSONRPCError{Code: -32000, Message: fmt.Sprintf("curator analysis failed: %v", err)}
+	}
+
+	return resp, nil
 }

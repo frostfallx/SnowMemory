@@ -13,6 +13,7 @@ import (
 	"github.com/vmwin11/snowmemory/internal/database"
 	internalmcp "github.com/vmwin11/snowmemory/internal/mcp"
 	"github.com/vmwin11/snowmemory/internal/web"
+	curator "github.com/vmwin11/snowmemory/internal/curator"
 )
 
 func main() {
@@ -28,6 +29,9 @@ func main() {
 	defer database.Close()
 
 	log.Println("SnowMemory starting...")
+
+	// 初始化 Curator（记忆整理子代理）
+	curator.InitDefaultCurator(curator.LoadConfig())
 
 	// 创建 MCP 服务器
 	mcpServer := internalmcp.NewServer("snowmemory", "1.0.0")
@@ -156,6 +160,24 @@ func registerMCPTools(s *internalmcp.Server) {
 		Handler: func(ctx context.Context, params map[string]any) (any, error) {
 			req := mapToGetUserFactsRequest(params)
 			return internalmcp.GetUserFactsMCP(ctx, req)
+		},
+	})
+
+	s.RegisterTool(internalmcp.Tool{
+		Name:        "analyze_conversation",
+		Description: "分析对话并自动记忆。接收原始对话文本，调用 LLM 判断需要记住什么，并自动执行记忆操作（创建/更新事实、学习别名）。",
+		InputSchema: internalmcp.Schema{
+			Type: "object",
+			Properties: map[string]*internalmcp.Schema{
+				"user_id":           {Type: "string"},
+				"group_id":          {Type: "string"},
+				"conversation_text": {Type: "string"},
+			},
+			Required: []string{"user_id", "conversation_text"},
+		},
+		Handler: func(ctx context.Context, params map[string]any) (any, error) {
+			req := mapToAnalyzeConversationRequest(params)
+			return internalmcp.AnalyzeConversationMCP(ctx, req)
 		},
 	})
 }
@@ -303,6 +325,22 @@ func runMCPStdio(s *internalmcp.Server) {
 			resp := internalmcp.NewJSONRPCResponse(result, id)
 			encoder.Encode(resp)
 
+			case "analyze_conversation":
+				req := mapToAnalyzeConversationRequest(params)
+				result, err := internalmcp.AnalyzeConversationMCP(context.Background(), req)
+				if err != nil {
+					if mcpErr, ok := err.(*internalmcp.JSONRPCError); ok {
+						resp := internalmcp.NewJSONRPCErrorResponse(mcpErr.Code, mcpErr.Message, mcpErr.Data, id)
+						encoder.Encode(resp)
+					} else {
+						resp := internalmcp.NewJSONRPCErrorResponse(-32000, err.Error(), "", id)
+						encoder.Encode(resp)
+					}
+					continue
+				}
+				resp := internalmcp.NewJSONRPCResponse(result, id)
+				encoder.Encode(resp)
+
 		default:
 			resp := internalmcp.NewJSONRPCErrorResponse(-32601, "method not found: "+method, "", id)
 			encoder.Encode(resp)
@@ -377,6 +415,14 @@ func mapToCreateCommonFactRequest(params map[string]any) internalmcp.CreateCommo
 func mapToGetUserFactsRequest(params map[string]any) internalmcp.GetUserFactsRequest {
 	return internalmcp.GetUserFactsRequest{
 		UserID: getString(params, "user_id"),
+	}
+}
+
+func mapToAnalyzeConversationRequest(params map[string]any) internalmcp.AnalyzeConversationRequest {
+	return internalmcp.AnalyzeConversationRequest{
+		UserID:           getString(params, "user_id"),
+		GroupID:          getString(params, "group_id"),
+		ConversationText: getString(params, "conversation_text"),
 	}
 }
 
